@@ -1,6 +1,6 @@
 const express = require('express')
 var cors = require('cors')
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const app = express()
 const port = process.env.PORT || 3000
@@ -33,15 +33,36 @@ async function run() {
     const lessonsCollection = database.collection("lessons");
 
     // lessons api
-    // app.get('/lessons', async (req, res) => {
-    //   const cursor = lessonsCollection.find();
-    //   const result = await cursor.toArray();
-    //   res.send(result);
-    // });
+    app.get('/lessons', async (req, res) => {
+      const query = {};
+
+      const {email} = req.query;
+
+      if(email){
+        query.email = email;
+      }
+
+      const options = { sort: {createdAt: -1}}
+
+      const cursor = lessonsCollection.find(query, options);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+
 
     app.post('/lessons', async (req, res) => {
       const lesson = req.body;
+      lesson.createAt= new Date();
       const result = await lessonsCollection.insertOne(lesson)
+      res.send(result);
+    })
+
+
+    app.delete('/lessons/:id', async (req, res) =>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await lessonsCollection.deleteOne(query);
       res.send(result);
     })
 
