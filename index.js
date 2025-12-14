@@ -3,6 +3,9 @@ var cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const app = express()
+const stripe = require('stripe')(process.env.STRIPE_SECRET);
+
+
 const port = process.env.PORT || 3000
 
 
@@ -31,6 +34,70 @@ async function run() {
 
     const database = client.db("digital_life_lessons");
     const lessonsCollection = database.collection("lessons");
+    const usersCollection = database.collection("users");
+
+    //payment related api
+    app.post('/create-checkout-session', async (req, res) => {
+      const paymentInfo = req.body;
+      // const amount = parseInt(paymentInfo.cost)*100
+  const session = await stripe.checkout.sessions.create({
+    line_items: [
+      {
+        // Provide the exact Price ID (for example, price_1234) of the product you want to sell
+        price_data:{
+          currency: 'USD',
+          unit_amount: 1500 * 100,
+          // unit_amount: amount
+
+          product_data:{
+            name: "Premium Plan"
+          }
+        },
+        quantity: 1,
+      },
+    ],
+    customer_email: paymentInfo.email,
+    mode: 'payment',
+    success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success`,
+    cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
+  });
+
+  // res.redirect(303, session.url);
+  res.send({url: session.url})
+});
+
+    // users api
+    app.post('/users', async (req, res) => {
+      const user = req.body;
+      const result = await usersCollection.insertOne(user)
+      res.send(result);
+    })
+
+    app.get('/users',  async (req, res) => {
+      const query = {}
+      const {email} = req.query;
+      if(email){
+        query.email = email;
+      }
+
+      if(id){
+        query._id  = new ObjectId(id)
+      }
+
+      const cursor = await usersCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+
+    })
+
+    app.get('/users/:id', async (req, res) => {
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)};
+      const result = await usersCollection.findOne(query);
+      res.send(result);
+    });
+
+
 
     // lessons api
     app.get('/lessons', async (req, res) => {
@@ -53,6 +120,7 @@ async function run() {
 
     app.post('/lessons', async (req, res) => {
       const lesson = req.body;
+      
       lesson.createAt= new Date();
       const result = await lessonsCollection.insertOne(lesson)
       res.send(result);
