@@ -8,6 +8,12 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET);
 
 const port = process.env.PORT || 3000
 
+function generateTrackingId() {
+  const date = new Date().toISOString().slice(0,10).replace(/-/g, '');
+  const random = Math.floor(100000 + Math.random() * 900000);
+  return `PK-${date}-${random}`;
+}
+
 
 // middleware
 app.use(express.json())
@@ -35,6 +41,7 @@ async function run() {
     const database = client.db("digital_life_lessons");
     const lessonsCollection = database.collection("lessons");
     const usersCollection = database.collection("users");
+    const paymentsCollection = database.collection("payments");
 
     //payment related api
     app.post('/create-checkout-session', async (req, res) => {
@@ -45,7 +52,7 @@ async function run() {
       {
         // Provide the exact Price ID (for example, price_1234) of the product you want to sell
         price_data:{
-          currency: 'USD',
+          currency: 'BDT',
           unit_amount: 1500 * 100,
           // unit_amount: amount
 
@@ -56,15 +63,70 @@ async function run() {
         quantity: 1,
       },
     ],
-    customer_email: paymentInfo.email,
+    customer_email: paymentInfo.buyerEmail,
     mode: 'payment',
-    success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success`,
+    metadata: {
+      userId: paymentInfo.userId,
+      name: "Premium Plan"
+    },
+    success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancelled`,
   });
 
   // res.redirect(303, session.url);
   res.send({url: session.url})
 });
+
+
+
+    app.patch('/payment-success',  async (req, res) => {
+    const sessionId = req.query.session_id;
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    console.log(session);
+      const trackingId = generateTrackingId();
+
+    if(session.payment_status === 'paid'){
+      const id = session.metadata.userId;
+      const query = {_id: new ObjectId(id)};
+      const update = {
+        $set: {
+          isPremium: true,
+          trackingId: trackingId,
+        },
+      };
+      const result = await usersCollection.updateOne(query, update);
+
+      const payment = {
+        amount: session.amount_total / 100,
+        currency: session.currency,
+        customer_email: session.customer_email,
+        userId: session.metadata.userId,
+        name: session.metadata.name,
+        transactionId: session.payment_intent,
+        payment_status: session.payment_status,
+        paidAt: new Date(),
+        
+      }
+
+      if(session.payment_status === 'paid'){
+        const resultPayment = await paymentsCollection.insertOne(payment);
+        res.send({
+          success: true, 
+          modifyParcel: result,
+          transactionId: session.payment_intent,
+          trackingId: trackingId,
+          paymentInfo: resultPayment}) 
+      }
+
+
+
+    }
+
+    res.send({success: false})
+    })
+
+
+
 
     // users api
     app.post('/users', async (req, res) => {
@@ -75,7 +137,7 @@ async function run() {
 
     app.get('/users',  async (req, res) => {
       const query = {}
-      const {email} = req.query;
+      const {email, id} = req.query;
       if(email){
         query.email = email;
       }
@@ -84,7 +146,7 @@ async function run() {
         query._id  = new ObjectId(id)
       }
 
-      const cursor = await usersCollection.find(query);
+      const cursor = usersCollection.find(query);
       const result = await cursor.toArray();
       res.send(result);
 
