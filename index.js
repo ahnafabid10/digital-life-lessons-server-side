@@ -6,7 +6,17 @@ const app = express()
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 
 
+
 const port = process.env.PORT || 3000
+
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
+
 
 function generateTrackingId() {
   const date = new Date().toISOString().slice(0,10).replace(/-/g, '');
@@ -18,6 +28,29 @@ function generateTrackingId() {
 // middleware
 app.use(express.json())
 app.use(cors())
+
+const verifyFBToken = async (req, res, next)=>{
+  console.log('verify fb token', req.headers.authorization)
+  const token = req.headers.authorization;
+  if(!token){
+    return res.status(401).send({message: 'unauthorized access'})
+  }
+
+  try{
+    const idToken = token.split(' ')[1]
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    console.log('decoded in the token', decoded)
+    req.decoded_email = decoded.email;
+
+    next();
+  }
+
+  catch(error){
+    return res.status(401).send({message: 'unauthorized access'})
+  }
+
+  
+}
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.h1evre0.mongodb.net/?appName=Cluster0`;
 
@@ -42,6 +75,32 @@ async function run() {
     const lessonsCollection = database.collection("lessons");
     const usersCollection = database.collection("users");
     const paymentsCollection = database.collection("payments");
+    const userCollection = database.collection("user");
+
+    //user related api
+
+    app.get('/user',verifyFBToken, async (req, res) => {
+      const email = req.query.email;
+      const query = {email: email};
+      const user = await userCollection.findOne(query);
+      res.send(user);
+    })
+
+    app.post('/user', async (req, res) => {
+      const user = req.body;
+      user.role = 'user';
+      user.createdAt = new Date();
+      const email = user.email;
+
+      const userExists = await userCollection.findOne({email});
+
+      if(userExists){
+        return res.send({message: 'User already exists'})
+      }
+
+      const result = await userCollection.insertOne(user)
+      res.send(result);
+    })
 
     //payment related api
     app.post('/create-checkout-session', async (req, res) => {
@@ -76,8 +135,6 @@ async function run() {
   // res.redirect(303, session.url);
   res.send({url: session.url})
 });
-
-
 
     app.patch('/payment-success',  async (req, res) => {
     const sessionId = req.query.session_id;
@@ -141,11 +198,21 @@ async function run() {
 
 
     //payment get api
-    app.get('/payments',  async (req, res) => {
+    app.get('/payments', verifyFBToken,  async (req, res) => {
       const email = req.query.email;
       const query ={}
+
+      // console.log(req.headers)
+
+
+
       if(email){
         query.customer_email = email;
+
+        //check email address
+        if(email !== req.decoded_email){
+          return res.status(403).send({message: 'forbidden access'})
+        }
       }
 
       const cursor = paymentsCollection.find(query);
@@ -160,11 +227,27 @@ async function run() {
     // users api
     app.post('/users', async (req, res) => {
       const user = req.body;
+      user.role = 'user';
+      user.createdAt = new Date();
+      const email = user.email;
+
+      const userExists = await usersCollection.findOne({email});
+
+      if(userExists){
+        return res.send({message: 'User already exists'})
+      }
+
       const result = await usersCollection.insertOne(user)
       res.send(result);
+      // const result = await usersCollection.insertOne(user)
+
+      // if(userExists){
+      //   return res.send({message: 'User already exists'})
+      // }
+      // res.send(result);
     })
 
-    app.get('/users',  async (req, res) => {
+    app.get('/users', verifyFBToken,  async (req, res) => {
       const query = {}
       const {email, id} = req.query;
       if(email){
@@ -181,7 +264,7 @@ async function run() {
 
     })
 
-    app.get('/users/:id', async (req, res) => {
+    app.get('/users/:id', verifyFBToken, async (req, res) => {
       const id = req.params.id;
       const query = {_id: new ObjectId(id)};
       const result = await usersCollection.findOne(query);
@@ -207,11 +290,18 @@ async function run() {
       res.send(result);
     });
 
+    app.get('/lessons', async (req, res) => {
+      const query = {status: 'pending'};
+      const cursor = lessonsCollection.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    })
+
 
 
     app.post('/lessons', async (req, res) => {
       const lesson = req.body;
-      
+      lesson.status= 'pending';
       lesson.createAt= new Date();
       const result = await lessonsCollection.insertOne(lesson)
       res.send(result);
@@ -224,6 +314,31 @@ async function run() {
       const result = await lessonsCollection.deleteOne(query);
       res.send(result);
     })
+
+    app.patch('/lessons/:id', verifyFBToken, async (req, res) =>{
+      const status = req.body.status;
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const updatedDoc = {
+        $set:{
+          status: status
+        }
+      }
+      const result = await lessonsCollection.updateOne(query, updatedDoc);
+
+      // if(status === 'approved'){
+      //   const email = req.body.email;
+      //   const userQuery = {email: email};
+      //   const updateUser = {
+      //     $set:{
+      //       role:
+      //     }
+      //   }
+      // }
+
+      res.send(result);
+    })
+
 
 
 
