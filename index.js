@@ -11,7 +11,7 @@ const port = process.env.PORT || 3000
 
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./");
+const serviceAccount = require("./digital-life-lessons-firebase-adminsdk.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -46,11 +46,13 @@ const verifyFBToken = async (req, res, next)=>{
   }
 
   catch(error){
-    return res.status(401).send({message: 'unauthorized access'})
+    return res.status(401).send({massage: 'unauthorized access'})
   }
 
   
 }
+
+
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.h1evre0.mongodb.net/?appName=Cluster0`;
 
@@ -75,32 +77,21 @@ async function run() {
     const lessonsCollection = database.collection("lessons");
     const usersCollection = database.collection("users");
     const paymentsCollection = database.collection("payments");
-    const userCollection = database.collection("user");
 
-    //user related api
 
-    app.get('/user',verifyFBToken, async (req, res) => {
-      const email = req.query.email;
-      const query = {email: email};
-      const user = await userCollection.findOne(query);
-      res.send(user);
-    })
+    //middle admin before admin activity 
+    const verifyAdmin = async (req, res, next)=>{
+      const email = req.decoded_email;
+      const query = {email}
+      const user= await usersCollection.findOne(query)
 
-    app.post('/user', async (req, res) => {
-      const user = req.body;
-      user.role = 'user';
-      user.createdAt = new Date();
-      const email = user.email;
-
-      const userExists = await userCollection.findOne({email});
-
-      if(userExists){
-        return res.send({message: 'User already exists'})
+      if(!user || user.role !== 'admin'){
+        return res.status(403).send({massage: 'forbidden access'})
       }
 
-      const result = await userCollection.insertOne(user)
-      res.send(result);
-    })
+      next()
+    }
+
 
     //payment related api
     app.post('/create-checkout-session', async (req, res) => {
@@ -148,7 +139,7 @@ async function run() {
     if(paymentExists){
       return res.send({
         success: true, 
-        message: 'Payment already processed',
+        massage: 'Payment already processed',
       transactionId,
       trackingId: paymentExists.trackingId
       })
@@ -211,7 +202,7 @@ async function run() {
 
         //check email address
         if(email !== req.decoded_email){
-          return res.status(403).send({message: 'forbidden access'})
+          return res.status(403).send({massage: 'forbidden access'})
         }
       }
 
@@ -234,7 +225,7 @@ async function run() {
       const userExists = await usersCollection.findOne({email});
 
       if(userExists){
-        return res.send({message: 'User already exists'})
+        return res.send({massage: 'User already exists'})
       }
 
       const result = await usersCollection.insertOne(user)
@@ -245,6 +236,17 @@ async function run() {
       //   return res.send({message: 'User already exists'})
       // }
       // res.send(result);
+    })
+
+    app.get('/users/:id', async(req,res)=>{
+
+    })
+
+    app.get('/users/:email/role',async(req, res)=>{
+      const email = req.params.email;
+      const query = {email}
+      const user = await usersCollection.findOne(query)
+      res.send({role:user?.role || 'user'})
     })
 
     app.get('/users', verifyFBToken,  async (req, res) => {
@@ -270,6 +272,19 @@ async function run() {
       const result = await usersCollection.findOne(query);
       res.send(result);
     });
+
+    app.patch('/users/:id/role', verifyFBToken,verifyAdmin, async(req, res)=>{
+      const id = req.params.id;
+      const roleInfo = req.body;
+      const query = { _id: new ObjectId(id)}
+      const updatedDoc = {
+        $set:{
+          role: roleInfo.role
+        }
+      }
+      const result = await usersCollection.updateOne(query, updatedDoc)
+      res.send(result)
+    })
 
 
 
@@ -315,7 +330,7 @@ async function run() {
       res.send(result);
     })
 
-    app.patch('/lessons/:id', verifyFBToken, async (req, res) =>{
+    app.patch('/lessons/:id', verifyFBToken,verifyAdmin, async (req, res) =>{
       const status = req.body.status;
       const id = req.params.id;
       const query = {_id: new ObjectId(id)}
