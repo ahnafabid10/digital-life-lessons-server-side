@@ -238,9 +238,15 @@ async function run() {
       // res.send(result);
     })
 
-    app.get('/users/:id', async(req,res)=>{
-
-    })
+    // app.get('/users/:id', async(req,res)=>{
+    //   const query = {}
+    //   const {userId} = req.query;
+    //   if(userId){
+    //     query.uid = userId
+    //   }
+    //   const result = await usersCollection.findOne(query)
+    //   res.send(result)
+    // })
 
     app.get('/users/:email/role',async(req, res)=>{
       const email = req.params.email;
@@ -287,6 +293,17 @@ async function run() {
     })
 
 
+    //all lessons by a user
+app.get('/users/:id/lessons', async (req, res) => {
+  const userId = req.params.id;
+  const lessons = await lessonsCollection.find({ mongoUserId: userId }).toArray();
+  const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+
+  res.send({user,lessons});
+});
+
+
+
 
     // lessons api
     app.get('/lessons', async (req, res) => {
@@ -312,6 +329,29 @@ async function run() {
       res.send(result);
     })
 
+//     app.get('/lessons', async (req, res) => {
+//   const query = {};
+//   const { email, status, privacy } = req.query;
+
+//   if (email) query.email = email;
+//   if (status) query.status = status;
+//   if (privacy) query.privacy = privacy;
+
+//   const options = { sort: { createAt: -1 } };
+//   const result = await lessonsCollection.find(query, options).toArray();
+
+//   res.send(result);
+// });
+
+
+
+    app.get('/lessons/:id', async(req, res)=>{
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id)}
+      const result = await lessonsCollection.findOne(query)
+      
+      res.send(result)
+    })
 
 
     app.post('/lessons', async (req, res) => {
@@ -323,12 +363,30 @@ async function run() {
     })
 
 
-    app.delete('/lessons/:id', async (req, res) =>{
-      const id = req.params.id;
-      const query = {_id: new ObjectId(id)}
-      const result = await lessonsCollection.deleteOne(query);
-      res.send(result);
-    })
+    // app.delete('/lessons/:id', async (req, res) =>{
+    //   const id = req.params.id;
+    //   const query = {_id: new ObjectId(id)}
+    //   const result = await lessonsCollection.deleteOne(query);
+    //   res.send(result);
+    // })
+
+    app.get('/lessons/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const query = { _id: new ObjectId(id) };
+
+    const lesson = await lessonsCollection.findOne(query);
+
+    if (!lesson) {
+      return res.status(404).send({ message: 'Lesson not found' });
+    }
+
+    res.send(lesson);
+  } catch (error) {
+    res.status(400).send({ message: 'Invalid lesson ID' });
+  }
+});
+
 
     app.patch('/lessons/:id', verifyFBToken,verifyAdmin, async (req, res) =>{
       const status = req.body.status;
@@ -336,7 +394,7 @@ async function run() {
       const query = {_id: new ObjectId(id)}
       const updatedDoc = {
         $set:{
-          status: status
+          status: status,
         }
       }
       const result = await lessonsCollection.updateOne(query, updatedDoc);
