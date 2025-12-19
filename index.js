@@ -77,6 +77,8 @@ async function run() {
     const lessonsCollection = database.collection("lessons");
     const usersCollection = database.collection("users");
     const paymentsCollection = database.collection("payments");
+    const ReportLessonCollection = database.collection('reportLessons')
+    const commentCollection = database.collection('comment')
 
 
     //middle admin before admin activity 
@@ -92,6 +94,37 @@ async function run() {
       next()
     }
 
+    // report Lessons post
+app.post('/reportLessons', verifyFBToken, async (req, res) => {
+  const report = {...req.body,
+    timestamp: new Date()
+  };
+
+  const result = await ReportLessonCollection.insertOne(report);
+  res.send(result);
+});
+
+
+
+
+
+    //comment post db
+    app.post('/comment', async(req, res)=>{
+      const comment = req.body;
+      const result = await commentCollection.insertOne(comment)
+
+      res.send(result)
+    })
+
+    //comment get db
+    app.get('/comments', async (req, res) => {
+  const lessonId = req.query.lessonId;
+
+  const query = { commentLessonId: lessonId };
+  const result = await commentCollection.find(query).toArray();
+
+  res.send(result);
+});
 
     //payment related api
     app.post('/create-checkout-session', async (req, res) => {
@@ -354,6 +387,51 @@ app.get('/users/:id/lessons', async (req, res) => {
     })
 
 
+    //like 
+    app.patch('/lessons/:id/like', verifyFBToken, async (req, res) => {
+  const { id } = req.params;
+  const { userId } = req.body;
+  const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) });
+  const isLiked = lesson.likes?.includes(userId);
+  const update = isLiked
+    ? 
+    {
+        $pull: { likes: userId },$inc: { likesCount: -1 }
+      }
+    : 
+    {
+        $addToSet: { likes: userId },$inc: { likesCount: 1 }
+      };
+
+  const result = await lessonsCollection.updateOne(
+    { _id: new ObjectId(id) },update);
+
+  res.send(result);
+});
+
+  //favourite
+  app.patch('/lessons/:id/favorite', verifyFBToken, async (req, res) => {
+  const { userId } = req.body;
+  const { id } = req.params;
+  const lesson = await lessonsCollection.findOne({ _id: new ObjectId(id) });
+  const isSaved = lesson.favorites?.includes(userId);
+  const update = isSaved
+    ? {
+        $pull: { favorites: userId },$inc: { favoritesCount: -1 }
+      }
+    : {
+        $addToSet: { favorites: userId }, $inc: { favoritesCount: 1 }
+      };
+
+  const result = await lessonsCollection.updateOne(
+    { _id: new ObjectId(id) }, update
+  );
+
+  res.send(result);
+});
+
+  
+
     app.post('/lessons', async (req, res) => {
       const lesson = req.body;
       lesson.status= 'pending';
@@ -387,6 +465,8 @@ app.get('/users/:id/lessons', async (req, res) => {
   }
 });
 
+
+  app.patch('/lessons/:id', async)
 
     app.patch('/lessons/:id', verifyFBToken,verifyAdmin, async (req, res) =>{
       const status = req.body.status;
