@@ -79,6 +79,8 @@ async function run() {
     const paymentsCollection = database.collection("payments");
     const ReportLessonCollection = database.collection('reportLessons')
     const commentCollection = database.collection('comment')
+    const favouriteCollection = database.collection('favourite')
+
 
 
     //middle admin before admin activity 
@@ -93,6 +95,49 @@ async function run() {
 
       next()
     }
+
+
+    // // //favourite
+app.post('/favourite',  async (req, res) => {
+  const favourite = req.body;
+
+  const favouriteExists = await favouriteCollection.findOne({
+    userEmail: favourite.userEmail,
+    lessonId: favourite.lessonId
+  });
+
+  if (favouriteExists) {
+    return res.send({ message: 'already favourited' });
+  }
+  const result = await favouriteCollection.insertOne(favourite);
+  res.send(result);
+});
+
+app.get('/favourite', verifyFBToken, async (req, res) => {
+  const email = req.query.email;
+  if (email !== req.decoded_email) {
+    return res.status(403).send({ message: 'forbidden access' });
+  }
+
+  const favourites = await favouriteCollection.find({ Email: email }).toArray();
+  res.send(favourites);
+});
+
+
+app.delete('/favourite/:id', async (req, res) => {
+  const id = req.params.id;
+  const email = req.decoded_email;
+
+  const query = {
+    _id: new ObjectId(id),
+    userEmail: email
+  };
+
+  const result = await favouriteCollection.deleteOne(query);
+  res.send(result);
+});
+
+
 
     // report Lessons post
 app.post('/reportLessons', verifyFBToken, async (req, res) => {
@@ -409,7 +454,7 @@ app.get('/users/:id/lessons', async (req, res) => {
   res.send(result);
 });
 
-  //favourite
+//   //favourite
   app.patch('/lessons/:id/favorite', verifyFBToken, async (req, res) => {
   const { userId } = req.body;
   const { id } = req.params;
