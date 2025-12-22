@@ -316,6 +316,19 @@ app.post('/reportLessons', verifyFBToken, async (req, res) => {
       // res.send(result);
     })
 
+    app.patch('/users/:id', async(req,res)=>{
+      const name = req.body.name
+      const id= req.params.id
+      const query={_id: new ObjectId(id)}
+      const updatedDoc = {
+        $set: {
+          name: name
+        }
+      }
+      const result = await usersCollection.updateOne(query, updatedDoc)
+      res.send(result)
+    })
+
     // app.get('/users/:id', async(req,res)=>{
     //   const query = {}
     //   const {userId} = req.query;
@@ -381,46 +394,74 @@ app.get('/users/:id/lessons', async (req, res) => {
 });
 
 
+app.get('/aMonth/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const endDate = new Date(); 
+  const startDate = new Date();
+  startDate.setDate(endDate.getDate() - 29);
+  const result = await lessonsCollection.aggregate([
+    {
+      $match: {
+        mongoUserId: userId,
+        createAt: {
+          $gte: startDate,
+          $lte: endDate,
+        },
+      },
+    },
+    {
+      $group: {
+        _id: {
+          $dateToString: { format: "%Y-%m-%d", date: "$createAt" },
+        },
+        count: { $sum: 1 },
+      },
+    },
+    { $sort: { _id: 1 } },]).toArray();
+res.send(result);
+});
+
+
+
 
 
     // lessons api
+    // app.get('/lessons', async (req, res) => {
+    //   const query = {};
+
+    //   const {email} = req.query;
+
+    //   if(email){
+    //     query.email = email;
+    //   }
+
+    //   const options = { sort: {createdAt: -1}}
+
+    //   const cursor = lessonsCollection.find(query, options);
+    //   const result = await cursor.toArray();
+    //   res.send(result);
+    // });
+
+    // app.get('/lessons', async (req, res) => {
+    //   const query = {status: 'pending'};
+    //   const cursor = lessonsCollection.find(query);
+    //   const result = await cursor.toArray();
+    //   res.send(result);
+    // })
+
     app.get('/lessons', async (req, res) => {
-      const query = {};
+  const query = {};
+  const { email, status, privacy } = req.query;
 
-      const {email} = req.query;
+  if (email) query.email = email;
+  if (status) query.status = status;
+  if (privacy) query.privacy = privacy;
 
-      if(email){
-        query.email = email;
-      }
+  const options = { sort: { createAt: -1 } };
+  const result = await lessonsCollection.find(query, options).toArray();
 
-      const options = { sort: {createdAt: -1}}
-
-      const cursor = lessonsCollection.find(query, options);
-      const result = await cursor.toArray();
-      res.send(result);
-    });
-
-    app.get('/lessons', async (req, res) => {
-      const query = {status: 'pending'};
-      const cursor = lessonsCollection.find(query);
-      const result = await cursor.toArray();
-      res.send(result);
-    })
-
-//     app.get('/lessons', async (req, res) => {
-//   const query = {};
-//   const { email, status, privacy } = req.query;
-
-//   if (email) query.email = email;
-//   if (status) query.status = status;
-//   if (privacy) query.privacy = privacy;
-
-//   const options = { sort: { createAt: -1 } };
-//   const result = await lessonsCollection.find(query, options).toArray();
-
-//   res.send(result);
-// });
-
+  res.send(result);
+});
 
 
     app.get('/lessons/:id', async(req, res)=>{
@@ -486,12 +527,12 @@ app.get('/users/:id/lessons', async (req, res) => {
     })
 
 
-    // app.delete('/lessons/:id', async (req, res) =>{
-    //   const id = req.params.id;
-    //   const query = {_id: new ObjectId(id)}
-    //   const result = await lessonsCollection.deleteOne(query);
-    //   res.send(result);
-    // })
+    app.delete('/lessons/:id', async (req, res) =>{
+      const id = req.params.id;
+      const query = {_id: new ObjectId(id)}
+      const result = await lessonsCollection.deleteOne(query);
+      res.send(result);
+    })
 
     app.get('/lessons/:id', async (req, res) => {
   try {
@@ -511,31 +552,18 @@ app.get('/users/:id/lessons', async (req, res) => {
 });
 
 
-  app.patch('/lessons/:id', async)
-
-    app.patch('/lessons/:id', verifyFBToken,verifyAdmin, async (req, res) =>{
-      const status = req.body.status;
-      const id = req.params.id;
-      const query = {_id: new ObjectId(id)}
-      const updatedDoc = {
-        $set:{
-          status: status,
+    app.put('/lessons/:id', async(req, res)=>{
+        const id = req.params.id;
+        const UpdatedData = req.body
+        const query = { _id: new ObjectId(id)}
+        const update = {
+            $set: UpdatedData
         }
-      }
-      const result = await lessonsCollection.updateOne(query, updatedDoc);
-
-      // if(status === 'approved'){
-      //   const email = req.body.email;
-      //   const userQuery = {email: email};
-      //   const updateUser = {
-      //     $set:{
-      //       role:
-      //     }
-      //   }
-      // }
-
-      res.send(result);
+        const result = await lessonsCollection.updateOne(query, update);
+        res.send(result)
     })
+
+
 
 
 
@@ -552,4 +580,4 @@ run().catch(console.dir);
 
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
-})
+}) 
