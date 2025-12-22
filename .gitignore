@@ -1,2 +1,4 @@
 node_modules
 .env
+.vercel
+digital-life-lessons-firebase-adminsdk.json
