@@ -150,6 +150,29 @@ app.post('/reportLessons', verifyFBToken, async (req, res) => {
 });
 
 
+app.get('/reportLessons', verifyFBToken, verifyAdmin, async (req, res) => {
+  const cursor = ReportLessonCollection.find()
+  const result = await cursor.toArray();
+  res.send(result);
+});
+
+
+app.get('/lessons/users-lesson/stats', async (req, res)=>{
+  const pipeline = [
+    {
+      $group: {
+         _id: { $toString: "$mongoUserId" },
+        // email: '$email',
+
+        count: {$sum: 1}
+      }
+    }
+  ]
+  const result = await lessonsCollection.aggregate(pipeline).toArray()
+  res.send(result)
+})
+
+
 
 
 
@@ -264,6 +287,49 @@ app.post('/reportLessons', verifyFBToken, async (req, res) => {
 
     res.send({success: false})
     })
+
+    app.get('/lessons/today-count', verifyFBToken, verifyAdmin, async (req, res) => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+
+  const count = await lessonsCollection.countDocuments({
+    createAt: { $gte: start, $lte: end }
+  });
+
+  res.send({ count });
+});
+
+app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res) => {
+  const pipeline = [
+    {
+      $group: {
+        _id: '$email',
+        lessonCount: { $sum: 1 }
+      }
+    },
+    { $sort: { lessonCount: -1 } },
+    { $limit: 5 }
+  ];
+
+  const result = await lessonsCollection.aggregate(pipeline).toArray();
+
+  const contributors = await Promise.all(
+    result.map(async item => {
+      const user = await usersCollection.findOne({ email: item._id });
+      return {
+        name: user?.name || 'Unknown',
+        email: item._id,
+        lessonCount: item.lessonCount
+      };
+    })
+  );
+
+  res.send(contributors);
+});
+
 
 
     //payment get api
