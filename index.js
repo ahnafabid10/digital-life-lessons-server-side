@@ -12,12 +12,12 @@ const port = process.env.PORT || 3000
 
 const admin = require("firebase-admin");
 
-const serviceAccount = require("./digital-life-lessons-firebase-adminsdk.json");
+// const serviceAccount = require("./digital-life-lessons-firebase-adminsdk.json");
 
 // const serviceAccount = require("./firebase-admin-key.json");
 
-// const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
-// const serviceAccount = JSON.parse(decoded);
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -77,7 +77,7 @@ app.get('/', (req, res) => {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const database = client.db("digital_life_lessons");
     const lessonsCollection = database.collection("lessons");
@@ -307,14 +307,49 @@ app.get('/lessons/users-lesson/stats', async (req, res)=>{
   res.send({ count });
 });
 
-app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res) => {
+// app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res) => {
+//   const pipeline = [
+//     {
+//       $group: {
+//         _id: '$email',
+//         lessonCount: { $sum: 1 }
+//       }
+//     },
+//     { $sort: { lessonCount: -1 } },
+//     { $limit: 5 }
+//   ];
+
+//   const result = await lessonsCollection.aggregate(pipeline).toArray();
+
+//  const contributors = await Promise.all(
+//   result.map(async item => {
+//     const user = await usersCollection.findOne({ email: item._id });
+//     return {
+//       name: user?.name || 'Unknown',
+//       email: item._id,
+//       avatar: user?.photo || '/default-avatar.png',
+//       lessonCount: item.lessonCount
+//     };
+//   })
+// );
+
+
+//   res.send(contributors);
+// });
+
+app.get('/lessons/most-saved', async (req, res) => {
+  const lessonsCollection = client.db("digital_life_lessons").collection("lessons");
+
+  const mostSaved = await lessonsCollection
+    .find({}).sort({ favoritesCount: -1 }).limit(6).toArray();
+
+  res.send(mostSaved);
+});
+
+
+app.get('/lessons/top-contributors', async (req, res) => {
   const pipeline = [
-    {
-      $group: {
-        _id: '$email',
-        lessonCount: { $sum: 1 }
-      }
-    },
+    { $group: { _id: '$email', lessonCount: { $sum: 1 } } },
     { $sort: { lessonCount: -1 } },
     { $limit: 5 }
   ];
@@ -327,6 +362,7 @@ app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res
       return {
         name: user?.name || 'Unknown',
         email: item._id,
+        avatar: user?.photo || '/default-avatar.png',
         lessonCount: item.lessonCount
       };
     })
@@ -334,7 +370,6 @@ app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res
 
   res.send(contributors);
 });
-
 
 
     //payment get api
@@ -453,6 +488,47 @@ app.get('/reportLessons/summary', verifyFBToken, verifyAdmin, async (req, res) =
       const user = await usersCollection.findOne(query)
       res.send({role:user?.role || 'user'})
     })
+
+
+    app.get('/lessons/similar/category', async (req, res) => {
+  const { category, lessonId } = req.query;
+
+  const pipeline = [
+    {
+      $match: {
+        category: category,
+        _id: { $ne: new ObjectId(lessonId) }
+      }
+    },
+    { $sort: { createAt: -1 } }, // optional
+    { $limit: 6 }
+  ];
+
+  const result = await lessonsCollection.aggregate(pipeline).toArray();
+  res.send(result);
+});
+
+
+// Recommended lessons by tone
+app.get('/lessons/similar/tone', async (req, res) => {
+  const { tone, lessonId } = req.query;
+
+  const pipeline = [
+    {
+      $match: {
+        tone: tone,
+        _id: { $ne: new ObjectId(lessonId) }
+      }
+    },
+    { $sort: { createAt: -1 } }, // optional
+    { $limit: 6 }
+  ];
+
+  const result = await lessonsCollection.aggregate(pipeline).toArray();
+  res.send(result);
+});
+
+
 
     app.get('/users', verifyFBToken,  async (req, res) => {
       const query = {}
