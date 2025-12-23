@@ -454,6 +454,47 @@ app.get('/reportLessons/summary', verifyFBToken, verifyAdmin, async (req, res) =
       res.send({role:user?.role || 'user'})
     })
 
+
+    app.get('/lessons/similar/category', async (req, res) => {
+  const { category, lessonId } = req.query;
+
+  const pipeline = [
+    {
+      $match: {
+        category: category,
+        _id: { $ne: new ObjectId(lessonId) }
+      }
+    },
+    { $sort: { createAt: -1 } }, // optional
+    { $limit: 6 }
+  ];
+
+  const result = await lessonsCollection.aggregate(pipeline).toArray();
+  res.send(result);
+});
+
+
+// Recommended lessons by tone
+app.get('/lessons/similar/tone', async (req, res) => {
+  const { tone, lessonId } = req.query;
+
+  const pipeline = [
+    {
+      $match: {
+        tone: tone,
+        _id: { $ne: new ObjectId(lessonId) }
+      }
+    },
+    { $sort: { createAt: -1 } }, // optional
+    { $limit: 6 }
+  ];
+
+  const result = await lessonsCollection.aggregate(pipeline).toArray();
+  res.send(result);
+});
+
+
+
     app.get('/users', verifyFBToken,  async (req, res) => {
       const query = {}
       const {email, id} = req.query;
@@ -689,4 +730,3 @@ run().catch(console.dir);
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
 }) 
-
