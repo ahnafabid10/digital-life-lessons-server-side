@@ -1,5 +1,6 @@
 const express = require('express')
 var cors = require('cors')
+
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const app = express()
@@ -11,12 +12,16 @@ const port = process.env.PORT || 3000
 
 const admin = require("firebase-admin");
 
-// const serviceAccount = require("./digital-life-lessons-firebase-adminsdk.json");
+const serviceAccount = require("./digital-life-lessons-firebase-adminsdk.json");
 
 // const serviceAccount = require("./firebase-admin-key.json");
 
-const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
-const serviceAccount = JSON.parse(decoded);
+// const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+// const serviceAccount = JSON.parse(decoded);
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
 
 function generateTrackingId() {
@@ -66,13 +71,13 @@ const client = new MongoClient(uri, {
 });
 
 app.get('/', (req, res) => {
-  res.send('helloooooooooooooooooooooooooooooooooooo')
+  res.send('he;lllooooooooooooooooooooooooooooooooooooooo')
 })
 
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const database = client.db("digital_life_lessons");
     const lessonsCollection = database.collection("lessons");
@@ -102,7 +107,7 @@ async function run() {
 app.post('/favourite',  async (req, res) => {
   const favourite = req.body;
 
-  const favouriteExists = await favouriteCollection.find({
+  const favouriteExists = await favouriteCollection.findOne({
     userEmail: favourite.userEmail,
     lessonId: favourite.lessonId
   });
@@ -172,7 +177,6 @@ app.get('/lessons/users-lesson/stats', async (req, res)=>{
   const result = await lessonsCollection.aggregate(pipeline).toArray()
   res.send(result)
 })
-
 
 
 
@@ -357,6 +361,41 @@ app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res
       
     })
 
+    app.delete('/lessons/:id', verifyFBToken, verifyAdmin, async (req, res) => {
+  const id = req.params.id;
+
+  const lessonResult = await lessonsCollection.deleteOne({
+    _id: new ObjectId(id)
+  });
+
+  await ReportLessonCollection.deleteMany({ lessonId: id });
+
+  res.send(lessonResult);
+});
+
+app.get('/reportLessons/summary', verifyFBToken, verifyAdmin, async (req, res) => {
+  const pipeline = [
+    {
+      $group: {
+        _id: "$lessonId",
+        reportCount: { $sum: 1 },
+        lessonTitle: { $first: "$lessonTitle" },
+        reports: {
+          $push: {
+            reporterEmail: "$reporterEmail",
+            reason: "$reason",
+            timestamp: "$timestamp"
+          }
+        }
+      }
+    },
+    { $sort: { reportCount: -1 } }
+  ];
+
+  const result = await ReportLessonCollection.aggregate(pipeline).toArray();
+  res.send(result);
+});
+
 
 
 
@@ -385,11 +424,13 @@ app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res
 
     app.patch('/users/:id', async(req,res)=>{
       const name = req.body.name
+      const photo = req.body.photo
       const id= req.params.id
       const query={_id: new ObjectId(id)}
       const updatedDoc = {
         $set: {
-          name: name
+          name: name,
+          photo: photo
         }
       }
       const result = await usersCollection.updateOne(query, updatedDoc)
@@ -631,9 +672,13 @@ res.send(result);
     })
 
 
+
+
+
+
     // Send a ping to confirm a successful connection
-    // await client.db("admin").command({ ping: 1 });
-    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    await client.db("admin").command({ ping: 1 });
+    console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
@@ -644,3 +689,4 @@ run().catch(console.dir);
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`)
 }) 
+
