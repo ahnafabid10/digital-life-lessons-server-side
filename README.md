@@ -2,7 +2,7 @@
 
 The server-side application powering **Digital Life Lessons**, handling user authentication, lesson management, payments, comments, favorites, and admin dashboards. Built with **Node.js**, **Express**, **MongoDB**, **Firebase Admin**, and **Stripe** for premium subscription handling.
 
-Server repo: [https://github.com/ahnafabid10/digital-life-lessons-server-side/tree/my-new-branch](https://github.com/ahnafabid10/digital-life-lessons-server-side/tree/my-new-branch)
+client site repo: https://github.com/ahnafabid10/digital-life-lessons-client-side/
 
 Live Frontend Site: [https://digital-life-lesson11.netlify.app/](https://digital-life-lesson11.netlify.app/)
 
