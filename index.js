@@ -307,7 +307,7 @@ app.get('/lessons/users-lesson/stats', async (req, res)=>{
   res.send({ count });
 });
 
-app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res) => {
+app.get('/lessons/top-contributors', async (req, res) => {
   const pipeline = [
     {
       $group: {
@@ -316,7 +316,7 @@ app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res
       }
     },
     { $sort: { lessonCount: -1 } },
-    { $limit: 5 }
+    { $limit: 8 }
   ];
 
   const result = await lessonsCollection.aggregate(pipeline).toArray();
@@ -327,7 +327,8 @@ app.get('/lessons/top-contributors', verifyFBToken, verifyAdmin, async (req, res
       return {
         name: user?.name || 'Unknown',
         email: item._id,
-        lessonCount: item.lessonCount
+        photo: item.photo || user?.photo || 'https://img.daisyui.com/images/profile/demo/yellingcat@192.webp' ,
+        lessonCount: item.lessonCount,
       };
     })
   );
