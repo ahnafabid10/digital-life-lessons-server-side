@@ -6,7 +6,11 @@ require('dotenv').config()
 const app = express()
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 
+//swagger
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./swagger.json');
 
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 const port = process.env.PORT || 3000
 
@@ -61,7 +65,9 @@ const verifyFBToken = async (req, res, next)=>{
 
 
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.h1evre0.mongodb.net/?appName=Cluster0`;
+// const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.h1evre0.mongodb.net/?appName=Cluster0`;
+
+const uri = `mongodb://127.0.0.1:27017`
 
 const client = new MongoClient(uri, {
   serverApi: {
