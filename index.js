@@ -10,8 +10,6 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET);
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger.json');
 
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-
 const port = process.env.PORT || 3000
 
 const admin = require("firebase-admin");
@@ -108,6 +106,9 @@ async function run() {
 
       next()
     }
+
+    // swagger used for verify taken and verify admin
+    app.use('/api-docs',verifyFBToken,verifyAdmin ,swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 
     // // //favourite
